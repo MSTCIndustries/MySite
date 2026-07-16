@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>MSTC Financial Academy — Your Course</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+<!-- Supabase JS client -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy: #0c1b33;
+    --navy-mid: #142240;
+    --accent: #4e9af1;
+    --gold: #f5c842;
+    --green: #3ecf8e;
+    --text-primary: #f0f4fa;
+    --text-secondary: #a8bcda;
+    --text-muted: #6b87b2;
+    --border: rgba(78,154,241,0.15);
+    --border-hover: rgba(78,154,241,0.35);
+    --card-bg: rgba(255,255,255,0.03);
+  }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: 'DM Sans', sans-serif;
+    background: var(--navy);
+    color: var(--text-primary);
+    line-height: 1.7;
+    min-height: 100vh;
+  }
+
+  /* ── AUTH GATE (shown when logged out) ── */
+  #auth-gate {
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 2rem;
+    text-align: center;
+  }
+  #auth-gate h1 {
+    font-family: 'DM Serif Display', serif;
+    font-size: clamp(2rem, 4vw, 3rem);
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+  }
+  #auth-gate h1 em { font-style: italic; color: var(--gold); }
+  #auth-gate p { color: var(--text-secondary); max-width: 42ch; margin: 0 auto 2rem; }
+
+  .auth-card {
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid var(--border-hover);
+    border-radius: 16px;
+    padding: 2.5rem;
+    width: 100%;
+    max-width: 400px;
+    text-align: left;
+  }
+  .auth-tabs {
+    display: flex;
+    gap: 0;
+    margin-bottom: 1.8rem;
+    border-bottom: 0.5px solid var(--border);
+  }
+  .auth-tab {
+    background: none; border: none; cursor: pointer;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.88rem; font-weight: 600;
+    color: var(--text-muted);
+    padding: 0.6rem 1.2rem;
+    border-bottom: 2px solid transparent;
+    margin-bottom: -0.5px;
+    transition: all 0.2s;
+    letter-spacing: 0.03em;
+  }
+  .auth-tab.active { color: var(--gold); border-bottom-color: var(--gold); }
+
+  .auth-form { display: flex; flex-direction: column; gap: 1rem; }
+  .auth-form label {
+    font-size: 0.78rem; font-weight: 600; letter-spacing: 0.06em;
+    text-transform: uppercase; color: var(--text-muted);
+    display: block; margin-bottom: 0.35rem;
+  }
+  .auth-form input {
+    width: 100%;
+    background: rgba(255,255,255,0.04);
+    border: 0.5px solid var(--border-hover);
+    border-radius: 7px;
+    padding: 0.75rem 1rem;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.93rem;
+    color: var(--text-primary);
+    outline: none;
+    transition: border-color 0.2s;
+  }
+  .auth-form input::placeholder { color: var(--text-muted); }
+  .auth-form input:focus { border-color: var(--gold); }
+  .auth-error {
+    font-size: 0.82rem; color: #f87171;
+    background: rgba(248,113,113,0.08);
+    border: 0.5px solid rgba(248,113,113,0.25);
+    border-radius: 6px; padding: 0.6rem 0.9rem;
+    display: none;
+  }
+  .auth-error.show { display: block; }
+  .auth-success {
+    font-size: 0.82rem; color: var(--green);
+    background: rgba(62,207,142,0.08);
+    border: 0.5px solid rgba(62,207,142,0.25);
+    border-radius: 6px; padding: 0.6rem 0.9rem;
+    display: none;
+  }
+  .auth-success.show { display: block; }
+
+  .btn-gold {
+    background: var(--gold); color: #0c1b33;
+    border: none; border-radius: 6px;
+    font-family: 'DM Sans', sans-serif;
+    font-size: 0.92rem; font-weight: 600;
+    padding: 0.8rem 1.5rem; cursor: pointer;
+    width: 100%; transition: all 0.2s;
+  }
+  .btn-gold:hover { background: #f7d45a; }
+  .btn-gold:disabled { opacity: 0.6; cursor: not-allowed; }
+
+  .auth-footer-note {
+    margin-top: 1.2rem; font-size: 0.78rem;
+    color: var(--text-muted); text-align: center; line-height: 1.5;
+  }
+  .auth-footer-note a { color: var(--accent); text-decoration: none; }
+
+  /* ── COURSE UI (shown when logged in + has access) ── */
+  #course-ui { display: none; }
+
+  .course-nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 0.75rem 4%;
+    background: rgba(12,27,51,0.95); backdrop-filter: blur(12px);
+    border-bottom: 0.5px solid var(--border);
+  }
+  .course-nav-brand {
+    font-family: 'DM Serif Display', serif; font-size: 1.1rem; color: var(--text-primary);
+    text-decoration: none;
+  }
+  .course-nav-brand span { color: var(--gold); }
+  .course-nav-right { display: flex; align-items: center; gap: 1.2rem; }
+  .course-nav-right span { font-size: 0.82rem; color: var(--text-muted); }
+  .btn-signout {
+    background: none; border: 0.5px solid var(--border-hover); border-radius: 6px;
+    color: var(--text-muted); font-family: 'DM Sans', sans-serif;
+    font-size: 0.8rem; padding: 0.35rem 0.8rem; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-signout:hover { color: var(--text-primary); border-color: var(--text-muted); }
+
+  .course-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    min-height: 100vh;
+    padding-top: 60px;
+  }
+
+  /* sidebar */
+  .course-sidebar {
+    background: var(--navy-mid);
+    border-right: 0.5px solid var(--border);
+    padding: 1.5rem;
+    position: sticky; top: 60px; height: calc(100vh - 60px); overflow-y: auto;
+  }
+  .sidebar-label {
+    font-size: 0.7rem; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
+    color: var(--text-muted); margin-bottom: 1rem; display: block;
+  }
+  .lesson-list { list-style: none; display: flex; flex-direction: column; gap: 0.25rem; }
+  .lesson-btn {
+    width: 100%; background: none; border: none; border-radius: 8px;
+    text-align: left; padding: 0.7rem 0.9rem; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; font-size: 0.88rem;
+    color: var(--text-secondary); transition: all 0.15s;
+    display: flex; align-items: center; gap: 0.7rem;
+  }
+  .lesson-btn:hover { background: var(--card-bg); color: var(--text-primary); }
+  .lesson-btn.active { background: rgba(245,200,66,0.1); color: var(--gold); }
+  .lesson-num {
+    font-size: 0.72rem; font-weight: 700; color: var(--text-muted);
+    width: 1.5rem; flex-shrink: 0;
+  }
+  .lesson-btn.active .lesson-num { color: var(--gold); }
+  .lesson-check { margin-left: auto; color: var(--green); font-size: 0.8rem; opacity: 0; }
+  .lesson-btn.done .lesson-check { opacity: 1; }
+
+  /* main content */
+  .course-main { padding: 2.5rem 3.5rem; }
+  .video-wrap {
+    position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden;
+    border-radius: 12px; background: #060e1a; border: 0.5px solid var(--border);
+    margin-bottom: 2rem;
+  }
+  .video-wrap iframe {
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;
+  }
+  .video-placeholder {
+    position: absolute; inset: 0; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; gap: 0.75rem;
+    color: var(--text-muted); font-size: 0.9rem;
+  }
+  .video-placeholder span { font-size: 2.5rem; }
+  .lesson-title {
+    font-family: 'DM Serif Display', serif; font-size: 1.8rem;
+    color: var(--text-primary); margin-bottom: 0.5rem;
+  }
+  .lesson-desc { font-size: 0.95rem; color: var(--text-secondary); max-width: 60ch; line-height: 1.75; }
+  .lesson-nav-btns {
+    display: flex; gap: 1rem; margin-top: 2rem; padding-top: 2rem;
+    border-top: 0.5px solid var(--border);
+  }
+  .btn-lesson {
+    background: var(--card-bg); border: 0.5px solid var(--border-hover);
+    border-radius: 6px; color: var(--text-secondary);
+    font-family: 'DM Sans', sans-serif; font-size: 0.88rem; font-weight: 600;
+    padding: 0.65rem 1.3rem; cursor: pointer; transition: all 0.2s;
+  }
+  .btn-lesson:hover { color: var(--text-primary); border-color: var(--text-muted); }
+  .btn-lesson.primary { background: var(--gold); color: #0c1b33; border-color: var(--gold); }
+  .btn-lesson.primary:hover { background: #f7d45a; }
+
+  /* no-access state */
+  #no-access {
+    min-height: 100vh; display: none; flex-direction: column;
+    align-items: center; justify-content: center;
+    padding: 2rem; text-align: center;
+  }
+  #no-access h2 {
+    font-family: 'DM Serif Display', serif; font-size: 2rem;
+    color: var(--text-primary); margin-bottom: 0.75rem;
+  }
+  #no-access p { color: var(--text-secondary); max-width: 40ch; margin: 0 auto 1.5rem; }
+
+  @media (max-width: 900px) {
+    .course-layout { grid-template-columns: 1fr; }
+    .course-sidebar { position: static; height: auto; }
+    .course-main { padding: 1.5rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- AUTH GATE -->
+<div id="auth-gate">
+  <h1>MSTC <em>Financial Academy</em></h1>
+  <p>Sign in to access your course, or create an account after purchasing.</p>
+
+  <div class="auth-card">
+    <div class="auth-tabs">
+      <button class="auth-tab active" onclick="showTab('login')">Sign In</button>
+      <button class="auth-tab" onclick="showTab('signup')">Create Account</button>
+    </div>
+
+    <!-- LOGIN -->
+    <form class="auth-form" id="login-form" onsubmit="handleLogin(event)">
+      <div>
+        <label for="login-email">Email</label>
+        <input type="email" id="login-email" placeholder="you@email.com" required />
+      </div>
+      <div>
+        <label for="login-password">Password</label>
+        <input type="password" id="login-password" placeholder="••••••••" required />
+      </div>
+      <div class="auth-error" id="login-error"></div>
+      <button type="submit" class="btn-gold" id="login-btn">Sign In</button>
+      <p class="auth-footer-note">
+        Forgot password? <a href="#" onclick="handleReset(event)">Reset it</a>
+      </p>
+    </form>
+
+    <!-- SIGNUP -->
+    <form class="auth-form" id="signup-form" style="display:none" onsubmit="handleSignup(event)">
+      <div>
+        <label for="signup-email">Email</label>
+        <input type="email" id="signup-email" placeholder="you@email.com" required />
+      </div>
+      <div>
+        <label for="signup-password">Password</label>
+        <input type="password" id="signup-password" placeholder="Min. 8 characters" required minlength="8" />
+      </div>
+      <div class="auth-error" id="signup-error"></div>
+      <div class="auth-success" id="signup-success"></div>
+      <button type="submit" class="btn-gold" id="signup-btn">Create Account</button>
+      <p class="auth-footer-note">
+        Already have an account? <a href="#" onclick="showTab('login');return false;">Sign in</a>
+      </p>
+    </form>
+  </div>
+</div>
+
+<!-- NO ACCESS (paid but account mismatch, or trial) -->
+<div id="no-access">
+  <h2>Course not unlocked</h2>
+  <p>This account doesn't have course access yet. If you just purchased, check your email for setup instructions.</p>
+  <a href="finance-course.html" style="background:var(--gold);color:#0c1b33;border-radius:6px;padding:0.8rem 1.8rem;text-decoration:none;font-weight:600;">Enroll Now →</a>
+  <p style="margin-top:1rem;font-size:0.82rem;color:var(--text-muted);">
+    Already purchased? <a href="mailto:contact@mstcindustries.com" style="color:var(--accent);text-decoration:none;">Contact us</a>
+  </p>
+</div>
+
+<!-- COURSE UI -->
+<div id="course-ui">
+  <nav class="course-nav">
+    <a class="course-nav-brand" href="finance-course.html">MSTC <span>Financial Academy</span></a>
+    <div class="course-nav-right">
+      <span id="user-email-display"></span>
+      <button class="btn-signout" onclick="handleSignout()">Sign Out</button>
+    </div>
+  </nav>
+
+  <div class="course-layout">
+    <aside class="course-sidebar">
+      <span class="sidebar-label">Course Modules</span>
+      <ul class="lesson-list" id="lesson-list">
+        <!-- populated by JS -->
+      </ul>
+    </aside>
+
+    <main class="course-main">
+      <div class="video-wrap">
+        <iframe id="video-player" src="" allowfullscreen allow="autoplay" style="display:none"></iframe>
+        <div class="video-placeholder" id="video-placeholder">
+          <span>▶</span>
+          <p>Select a lesson to start watching</p>
+        </div>
+      </div>
+      <h2 class="lesson-title" id="lesson-title">Welcome to the course</h2>
+      <p class="lesson-desc" id="lesson-desc">Select a lesson from the sidebar to begin.</p>
+      <div class="lesson-nav-btns">
+        <button class="btn-lesson" id="btn-prev" onclick="changeLesson(-1)" style="display:none">← Previous</button>
+        <button class="btn-lesson primary" id="btn-next" onclick="changeLesson(1)" style="display:none">Next Lesson →</button>
+      </div>
+    </main>
+  </div>
+</div>
+
+<script>
+  // ── CONFIG — fill these in once you have your keys ──
+  const SUPABASE_URL = 'https://sxjysdoiwonnfhlngxac.supabase.co';
+  const SUPABASE_ANON_KEY = 'sb_publishable_hSpF2EyJI_AHBP1E8tZGvg_XYQTDIFk'; // paste your sb_publishable_... key here
+
+  // ── LESSONS — add your Bunny video IDs here once uploaded ──
+  // Each videoId comes from the Bunny Stream dashboard after upload.
+  // Format: { title, desc, videoId (Bunny Stream video GUID) }
+  const LESSONS = [
+    { title: 'Module 1 — Coming Soon', desc: 'Description coming soon.', videoId: null },
+    { title: 'Module 2 — Coming Soon', desc: 'Description coming soon.', videoId: null },
+    { title: 'Module 3 — Coming Soon', desc: 'Description coming soon.', videoId: null },
+    { title: 'Module 4 — Coming Soon', desc: 'Description coming soon.', videoId: null },
+    { title: 'Module 5 — Coming Soon', desc: 'Description coming soon.', videoId: null },
+  ];
+
+  // ── BUNNY CONFIG ──
+  const BUNNY_LIBRARY_ID = 'YOUR_BUNNY_LIBRARY_ID';
+
+  // ── INIT ──
+  const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  let currentLesson = 0;
+  let progress = JSON.parse(localStorage.getItem('mstc_progress') || '{}');
+
+  // Check session on load
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    if (session) checkAccess(session.user);
+    else showAuthGate();
+  });
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session) checkAccess(session.user);
+    else showAuthGate();
+  });
+
+  async function checkAccess(user) {
+    const { data, error } = await supabase
+      .from('course_access')
+      .select('has_access')
+      .eq('user_id', user.id)
+      .single();
+
+    if (data?.has_access) {
+      showCourse(user);
+    } else {
+      showNoAccess();
+    }
+  }
+
+  function showAuthGate() {
+    document.getElementById('auth-gate').style.display = 'flex';
+    document.getElementById('course-ui').style.display = 'none';
+    document.getElementById('no-access').style.display = 'none';
+  }
+
+  function showNoAccess() {
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('course-ui').style.display = 'none';
+    document.getElementById('no-access').style.display = 'flex';
+  }
+
+  function showCourse(user) {
+    document.getElementById('auth-gate').style.display = 'none';
+    document.getElementById('no-access').style.display = 'none';
+    document.getElementById('course-ui').style.display = 'block';
+    document.getElementById('user-email-display').textContent = user.email;
+    buildSidebar();
+  }
+
+  // ── AUTH HANDLERS ──
+  async function handleLogin(e) {
+    e.preventDefault();
+    const btn = document.getElementById('login-btn');
+    const err = document.getElementById('login-error');
+    btn.disabled = true; btn.textContent = 'Signing in…';
+    err.classList.remove('show');
+
+    const { error } = await supabase.auth.signInWithPassword({
+      email: document.getElementById('login-email').value,
+      password: document.getElementById('login-password').value,
+    });
+
+    if (error) {
+      err.textContent = error.message;
+      err.classList.add('show');
+      btn.disabled = false; btn.textContent = 'Sign In';
+    }
+  }
+
+  async function handleSignup(e) {
+    e.preventDefault();
+    const btn = document.getElementById('signup-btn');
+    const err = document.getElementById('signup-error');
+    const success = document.getElementById('signup-success');
+    btn.disabled = true; btn.textContent = 'Creating account…';
+    err.classList.remove('show'); success.classList.remove('show');
+
+    const { error } = await supabase.auth.signUp({
+      email: document.getElementById('signup-email').value,
+      password: document.getElementById('signup-password').value,
+    });
+
+    if (error) {
+      err.textContent = error.message;
+      err.classList.add('show');
+      btn.disabled = false; btn.textContent = 'Create Account';
+    } else {
+      success.textContent = 'Check your email to confirm your account, then sign in.';
+      success.classList.add('show');
+      btn.disabled = false; btn.textContent = 'Create Account';
+    }
+  }
+
+  async function handleReset(e) {
+    e.preventDefault();
+    const email = document.getElementById('login-email').value;
+    if (!email) { alert('Enter your email first.'); return; }
+    await supabase.auth.resetPasswordForEmail(email);
+    alert('Password reset email sent. Check your inbox.');
+  }
+
+  async function handleSignout() {
+    await supabase.auth.signOut();
+    progress = {};
+    localStorage.removeItem('mstc_progress');
+  }
+
+  function showTab(tab) {
+    document.getElementById('login-form').style.display = tab === 'login' ? 'flex' : 'none';
+    document.getElementById('signup-form').style.display = tab === 'signup' ? 'flex' : 'none';
+    document.querySelectorAll('.auth-tab').forEach((t, i) => {
+      t.classList.toggle('active', (i === 0 && tab === 'login') || (i === 1 && tab === 'signup'));
+    });
+  }
+
+  // ── COURSE PLAYER ──
+  function buildSidebar() {
+    const list = document.getElementById('lesson-list');
+    list.innerHTML = LESSONS.map((l, i) => `
+      <li>
+        <button class="lesson-btn ${progress[i] ? 'done' : ''}" onclick="loadLesson(${i})">
+          <span class="lesson-num">${String(i + 1).padStart(2, '0')}</span>
+          ${l.title}
+          <span class="lesson-check">✓</span>
+        </button>
+      </li>
+    `).join('');
+  }
+
+  function loadLesson(index) {
+    currentLesson = index;
+    const lesson = LESSONS[index];
+    document.getElementById('lesson-title').textContent = lesson.title;
+    document.getElementById('lesson-desc').textContent = lesson.desc;
+
+    const player = document.getElementById('video-player');
+    const placeholder = document.getElementById('video-placeholder');
+
+    if (lesson.videoId) {
+      // Bunny Stream embed URL
+      player.src = `https://iframe.mediadelivery.net/embed/${BUNNY_LIBRARY_ID}/${lesson.videoId}?autoplay=false&responsive=true`;
+      player.style.display = 'block';
+      placeholder.style.display = 'none';
+    } else {
+      player.src = '';
+      player.style.display = 'none';
+      placeholder.style.display = 'flex';
+    }
+
+    // Mark active in sidebar
+    document.querySelectorAll('.lesson-btn').forEach((btn, i) => {
+      btn.classList.toggle('active', i === index);
+    });
+
+    // Mark progress
+    progress[index] = true;
+    localStorage.setItem('mstc_progress', JSON.stringify(progress));
+    buildSidebar();
+    document.querySelectorAll('.lesson-btn')[index]?.classList.add('active');
+
+    // Prev/next buttons
+    document.getElementById('btn-prev').style.display = index > 0 ? 'block' : 'none';
+    document.getElementById('btn-next').style.display = index < LESSONS.length - 1 ? 'block' : 'none';
+
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  function changeLesson(dir) {
+    const next = currentLesson + dir;
+    if (next >= 0 && next < LESSONS.length) loadLesson(next);
+  }
+</script>
+</body>
+</html>
